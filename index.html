@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>HCI Final Project Linear vs Pie Menu</title>
+  <title>Linear vs Pie Menu – Fitts' Law Demo</title>
   <style>
     body {
       margin: 0;
@@ -77,12 +77,13 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: hidden;
     }
 
-    /* 中央 Menu 按鈕：固定在 stage 正中央 */
+    /* Menu 按鈕（位置之後在 JS 依模式調整） */
     #menu-center {
       position: absolute;
-      top: 50%;
+      top: 50%;          /* 預設在舞台中心（pie 模式用），linear 模式在 JS 改成 30% */
       left: 50%;
       transform: translate(-50%, -50%);
       width: 90px;
@@ -126,11 +127,8 @@
       opacity: 1;
     }
 
-    /* Linear menu (dropdown)：固定在 Menu 按鈕下方 */
+    /* Linear menu：top/left 由 JS 動態算，不在這裡寫死 */
     #linear-menu {
-      top: calc(50% + 26px);
-      left: 50%;
-      transform: translate(-50%, 0);
       background: #fff;
       border-radius: 6px;
       border: 1px solid #ddd;
@@ -159,7 +157,7 @@
       transform: translateY(1px);
     }
 
-    /* Pie menu：以 stage 中心為圓心（只當作放 label 的容器） */
+    /* Pie menu：以舞台中心為圓心（圓心與 menu-center 在 pie 模式對齊） */
     #pie-menu {
       top: 50%;
       left: 50%;
@@ -167,7 +165,6 @@
       height: 260px;
       transform: translate(-50%, -50%);
       border-radius: 50%;
-      /* 不用 pointer-events: none; 由 .menu 控制 */
     }
 
     .pie-item {
@@ -214,12 +211,11 @@
 </head>
 <body>
   <header>
-    <h2 style="margin:0;">Linear Menu vs Pie Menu – Fitts' Law Demo</h2>
+    <h2 style="margin:0;">HCI Final Project Linear Menu vs Pie Menu </h2>
     <div id="mode-toggle">
-      <!-- 實驗跑的時候由程式控制，不讓受試者自己選 -->
       <label>
         <input type="radio" name="mode" value="linear" checked disabled>
-        Linear dropdown
+        Linear menu
       </label>
       <label>
         <input type="radio" name="mode" value="pie" disabled>
@@ -248,7 +244,7 @@
       <li data-item="Help">Help</li>
     </ul>
 
-    <!-- Pie menu（只放 label，實際 hit 區域用角度＋半徑判定） -->
+    <!-- Pie menu -->
     <div id="pie-menu" class="menu">
       <button class="pie-item" data-item="File">File</button>
       <button class="pie-item" data-item="Edit">Edit</button>
@@ -277,16 +273,14 @@
 
     const pieButtons = Array.from(pieMenu.querySelectorAll('.pie-item'));
 
-    // === 實驗設定（可以改的參數都集中在這裡） ===
+    // === 實驗設定：可調參數 ===
     const ITEMS = ['File','Edit','View','Insert','Format','Tools','Window','Help'];
 
     const PIE_ITEM_COUNT = ITEMS.length;          // 8 個 item ⇒ 每個 360/8 = 45 度
-    const PIE_ANGULAR_WIDTH_DEG = 360 / PIE_ITEM_COUNT;
-
     const PIE_INNER_DEADZONE = 30;                // 中心盲區半徑 (px)，建議 20–40
-    const PIE_VISUAL_RADIUS   = 120;              // Label/按鈕中心距離 (px)：建議 100–150
+    const PIE_VISUAL_RADIUS   = 120;              // Pie label 距離中心 (px)，建議 100–150
 
-    const TRIALS_PER_BLOCK = 8;                   // 每種 menu 幾個 trial（之後可以加大）
+    const TRIALS_PER_BLOCK = 8;                   // 每種 menu 幾個 trial
     const BLOCK_ORDER = ['linear', 'pie'];        // Block 順序：先 linear 再 pie
     const TOTAL_TRIALS = TRIALS_PER_BLOCK * BLOCK_ORDER.length;
 
@@ -307,20 +301,32 @@
       console.log(msg);
     }
 
-    // === Pie menu：排版按鈕位置（只負責「視覺位置」，真正 hit 判定在 handlePieSelection） ===
+    // === Pie menu：排版按鈕（視覺位置） ===
     function layoutPieItems(radius = PIE_VISUAL_RADIUS) {
       const rect = pieMenu.getBoundingClientRect();
       const centerX = rect.width / 2;
       const centerY = rect.height / 2;
 
       pieButtons.forEach((btn, i) => {
-        // 每個 item 的中心角度：等分 360 度，從正上方開始順時針排
         const angle = (2 * Math.PI * i) / PIE_ITEM_COUNT - Math.PI / 2;
         const x = centerX + radius * Math.cos(angle);
         const y = centerY + radius * Math.sin(angle);
         btn.style.left = x + 'px';
         btn.style.top  = y + 'px';
       });
+    }
+
+    // === Linear menu：讓 dropdown 永遠貼在 Menu 按鈕正下方 ===
+    function positionLinearMenu() {
+      const stageRect  = stage.getBoundingClientRect();
+      const centerRect = menuCenter.getBoundingClientRect();
+
+      const top  = centerRect.bottom - stageRect.top + 4; // +4px 間距
+      const left = centerRect.left + centerRect.width / 2 - stageRect.left;
+
+      linearMenu.style.top = `${top}px`;
+      linearMenu.style.left = `${left}px`;
+      linearMenu.style.transform = 'translate(-50%, 0)';
     }
 
     function updateModeRadioUI(mode) {
@@ -333,16 +339,29 @@
       linearMenu.classList.remove('visible');
       pieMenu.classList.remove('visible');
       updateModeRadioUI(mode);
+
+      if (mode === 'linear') {
+        // Linear 模式：Menu 按鈕放在舞台高度約 30% 處，避免 dropdown 被底部吃掉
+        menuCenter.style.top = '20%';
+        menuCenter.style.left = '50%';
+        positionLinearMenu(); // 讓 dropdown 跟著新的位置
+      } else {
+        // Pie 模式：Menu 回到舞台正中央，和 pie-menu 圓心對齊
+        menuCenter.style.top = '50%';
+        menuCenter.style.left = '50%';
+      }
+
       log(`Mode: ${mode === 'linear' ? 'Linear dropdown' : 'Pie menu'}。按 Menu 開啟選單。`);
     }
 
     // === Menu 按鈕：打開/關閉目前模式的 menu ===
     menuCenter.addEventListener('click', (event) => {
-      event.stopPropagation();  // 避免 bubble 到 stage 被當成 pie 選擇
+      event.stopPropagation();
       const now = performance.now();
       menuOpen = !menuOpen;
 
       if (currentMode === 'linear') {
+        positionLinearMenu(); // 每次打開前再對齊一次
         linearMenu.classList.toggle('visible', menuOpen);
         pieMenu.classList.remove('visible');
       } else {
@@ -356,11 +375,10 @@
       }
 
       if (!experimentRunning) {
-        if (menuOpen) {
-          log(`Menu opened (${currentMode}). Free play.`);
-        } else {
-          log('Menu closed (free play).');
-        }
+        log(menuOpen
+          ? `Menu opened (${currentMode}). Free play.`
+          : 'Menu closed (free play).'
+        );
       }
     });
 
@@ -383,15 +401,11 @@
       finishTrial('linear', item);
     });
 
-    // === Pie menu：根據「角度＋半徑」決定選到哪個 wedge ===
+    // === Pie menu：根據角度＋半徑判定 wedge ===
     function handlePieSelection(event) {
-      // 只在 pie 模式 + menu 打開時作用
       if (currentMode !== 'pie' || !menuOpen) return;
-
-      // 點到 Menu 按鈕就當成關閉，不當成選項
       if (event.target.closest('#menu-center')) return;
 
-      // 以 stage 中心為原點計算滑鼠位置
       const stageRect = stage.getBoundingClientRect();
       const cx = stageRect.left + stageRect.width  / 2;
       const cy = stageRect.top  + stageRect.height / 2;
@@ -400,15 +414,13 @@
       const dy = event.clientY - cy;
       const r  = Math.hypot(dx, dy);
 
-      // 中心盲區：避免在中心附近小抖動就跳 item
       if (r < PIE_INNER_DEADZONE) {
         log('Pie menu：點在中心盲區（不算選項）。');
         return;
       }
 
-      // 角度：以正上方為 0 度，順時針 0~360
-      let theta = Math.atan2(dy, dx);    // [-π, π]，0 在右邊
-      theta += Math.PI / 2;              // 改成 0 在上方
+      let theta = Math.atan2(dy, dx); // [-π, π]，0 在右
+      theta += Math.PI / 2;           // 0 轉到上方
       if (theta < 0) theta += 2 * Math.PI;
 
       const sectorSize = 2 * Math.PI / PIE_ITEM_COUNT;
@@ -418,14 +430,12 @@
 
       const selectedLabel = ITEMS[index];
 
-      // 視覺按壓效果：對應 wedge 的 label 按鈕縮小一下
       const btn = pieButtons[index];
       if (btn) {
         btn.classList.add('pressed');
         setTimeout(() => btn.classList.remove('pressed'), 120);
       }
 
-      // 這裡就實現了「有效距離無限大」：只看角度，不看 r 上限
       menuOpen = false;
       pieMenu.classList.remove('visible');
 
@@ -437,10 +447,9 @@
       finishTrial('pie', selectedLabel);
     }
 
-    // 在整個 stage 上監聽 click（只有 pie 模式 + menuOpen 時會觸發 handlePieSelection）
     stage.addEventListener('click', handlePieSelection);
 
-    // === 實驗 trial 流程控制 ===
+    // === 實驗 trial 流程 ===
     function finishTrial(menuType, selectedItem) {
       if (!experimentRunning) return;
 
@@ -469,10 +478,7 @@
       );
 
       trialIndex++;
-
-      setTimeout(() => {
-        nextTrial();
-      }, 500);
+      setTimeout(nextTrial, 500);
     }
 
     function nextTrial() {
@@ -488,7 +494,6 @@
 
       setMode(menuType);
 
-      // 簡單用 random target（之後你可以改成 counterbalanced）
       currentTarget = ITEMS[Math.floor(Math.random() * ITEMS.length)];
 
       targetText.textContent = `目標：請選擇「${currentTarget}」`;
@@ -497,7 +502,6 @@
         `${menuType === 'linear' ? 'Linear' : 'Pie'} | ` +
         `Trial ${trialIndex % TRIALS_PER_BLOCK + 1}/${TRIALS_PER_BLOCK}`;
 
-      // 重置 movement 記錄
       movementStarted = false;
       movementStartTime = null;
     }
@@ -517,6 +521,42 @@
       nextTrial();
     }
 
+    // === 匯出 trial, linear_MT_ms, pie_MT_ms 的 CSV ===
+    function downloadPairedCSV() {
+      if (!logs.length) return;
+
+      const headers = ['trial', 'linear_MT_ms', 'pie_MT_ms'];
+      let csv = headers.join(',') + '\n';
+
+      for (let t = 0; t < TRIALS_PER_BLOCK; t++) {
+        const linearLog = logs.find(
+          row => row.menuType === 'linear' && row.trialInBlock === t
+        );
+        const pieLog = logs.find(
+          row => row.menuType === 'pie' && row.trialInBlock === t
+        );
+
+        const linearMT = linearLog && linearLog.MT_ms != null
+          ? linearLog.MT_ms.toFixed(1)
+          : '';
+        const pieMT = pieLog && pieLog.MT_ms != null
+          ? pieLog.MT_ms.toFixed(1)
+          : '';
+
+        csv += `${t + 1},${linearMT},${pieMT}\n`;
+      }
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'fitts_pair_MT.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
     function finishExperiment() {
       experimentRunning = false;
       menuOpen = false;
@@ -529,9 +569,11 @@
       targetText.textContent = '目標：實驗結束';
       statusText.textContent = `共完成 ${TOTAL_TRIALS} trials`;
 
-      log('Experiment finished. 請在 console 取出 logs（JSON）。');
-      console.log('=== Experiment logs ===');
+      log('Experiment finished. 已下載 paired CSV。完整 logs 在 console。');
+      console.log('=== Full experiment logs (per selection) ===');
       console.log(JSON.stringify(logs, null, 2));
+
+      downloadPairedCSV();
     }
 
     startBtn.addEventListener('click', () => {
