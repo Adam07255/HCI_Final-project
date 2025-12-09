@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Linear vs Pie Menu – Basic Demo</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f5;
+    }
+
+    header {
+      margin-top: 16px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    #mode-toggle {
+      margin-top: 4px;
+      font-size: 14px;
+    }
+
+    #mode-toggle label {
+      margin: 0 8px;
+      cursor: pointer;
+    }
+
+    /* 中央實驗區 */
+    #stage {
+      position: relative;
+      margin-top: 24px;
+      width: 600px;
+      height: 400px;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 中央 Menu 按鈕：固定在 stage 正中央 */
+    #menu-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90px;
+      height: 36px;
+      border-radius: 18px;
+      background: #333;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      user-select: none;
+      transition: transform 0.08s ease-out, box-shadow 0.08s ease-out, background 0.08s;
+    }
+
+    #menu-center:hover {
+      background: #444;
+    }
+
+    /* 按下去的視覺反饋 */
+    #menu-center:active {
+      transform: translate(-50%, -50%) scale(0.95);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.35);
+      background: #222;
+    }
+
+    /* 共用 menu 容器 */
+    .menu {
+      position: absolute;
+      pointer-events: none; /* 預設不吃事件 */
+      opacity: 0;
+      transition: opacity 0.15s ease-out;
+    }
+
+    .menu.visible {
+      pointer-events: auto; /* 打開時才吃事件 */
+      opacity: 1;
+    }
+
+    /* Linear menu (dropdown)：固定在 Menu 按鈕下方 */
+    #linear-menu {
+      top: calc(50% + 26px);  /* 中心往下移一點（= 半顆按鈕高度 + gap） */
+      left: 50%;
+      transform: translate(-50%, 0);
+      background: #fff;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      overflow: hidden;
+      min-width: 160px;
+    }
+
+    #linear-menu li {
+      list-style: none;
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      display: block;
+      position: relative;
+      transition: background 0.08s ease-out, transform 0.08s ease-out;
+    }
+
+    #linear-menu li:hover {
+      background: #f0f0f0;
+    }
+
+    /* 按下 linear item 時，下沉＋顏色加深 */
+    #linear-menu li:active {
+      background: #e0e0e0;
+      transform: translateY(1px);
+    }
+
+    /* Pie menu：以 stage 中心為圓心 */
+    #pie-menu {
+      top: 50%;
+      left: 50%;
+      width: 260px;
+      height: 260px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      /* 這裡原本有 pointer-events: none; 已經刪掉 */
+    }
+
+    .pie-item {
+      position: absolute;
+      width: 80px;
+      height: 28px;
+      border-radius: 14px;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      font-size: 12px;
+      cursor: pointer;
+      transform: translate(-50%, -50%);
+      white-space: nowrap;
+      transition: background 0.08s ease-out, transform 0.08s ease-out, box-shadow 0.08s ease-out;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .pie-item:hover {
+      background: #1565c0;
+    }
+
+    /* 按下去時的樣式（用 JS 加 .pressed） */
+    .pie-item.pressed {
+      transform: translate(-50%, -50%) scale(0.90);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+      background: #0d47a1;
+    }
+
+    /* 右下角 log */
+    #log {
+      position: fixed;
+      right: 12px;
+      bottom: 12px;
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      padding: 8px 10px;
+      font-size: 12px;
+      border-radius: 6px;
+      max-width: 260px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h2 style="margin:0;">Linear Menu vs Pie Menu – Basic Demo</h2>
+    <div id="mode-toggle">
+      <label>
+        <input type="radio" name="mode" value="linear" checked>
+        Linear dropdown
+      </label>
+      <label>
+        <input type="radio" name="mode" value="pie">
+        Pie menu
+      </label>
+    </div>
+  </header>
+
+  <div id="stage">
+    <!-- 中央 Menu 按鈕 -->
+    <button id="menu-center">Menu</button>
+
+    <!-- Linear dropdown -->
+    <ul id="linear-menu" class="menu">
+      <li data-item="File">File</li>
+      <li data-item="Edit">Edit</li>
+      <li data-item="View">View</li>
+      <li data-item="Insert">Insert</li>
+      <li data-item="Format">Format</li>
+      <li data-item="Tools">Tools</li>
+      <li data-item="Window">Window</li>
+      <li data-item="Help">Help</li>
+    </ul>
+
+    <!-- Pie menu -->
+    <div id="pie-menu" class="menu">
+      <button class="pie-item" data-item="File">File</button>
+      <button class="pie-item" data-item="Edit">Edit</button>
+      <button class="pie-item" data-item="View">View</button>
+      <button class="pie-item" data-item="Insert">Insert</button>
+      <button class="pie-item" data-item="Format">Format</button>
+      <button class="pie-item" data-item="Tools">Tools</button>
+      <button class="pie-item" data-item="Window">Window</button>
+      <button class="pie-item" data-item="Help">Help</button>
+    </div>
+  </div>
+
+  <div id="log">Ready.</div>
+
+  <script>
+    const logDiv = document.getElementById('log');
+    const linearMenu = document.getElementById('linear-menu');
+    const pieMenu = document.getElementById('pie-menu');
+    const modeRadios = document.querySelectorAll('input[name="mode"]');
+    const menuCenter = document.getElementById('menu-center');
+
+    let currentMode = 'linear';
+    let menuOpen = false;
+
+    function log(msg) {
+      logDiv.textContent = msg;
+      console.log(msg);
+    }
+
+    // 將 pie menu 子項目平均分布在圓周上
+    function layoutPieItems() {
+      const items = pieMenu.querySelectorAll('.pie-item');
+      const N = items.length;
+      const radius = 90; // 之後可以當作實驗參數
+      const centerX = pieMenu.clientWidth / 2;
+      const centerY = pieMenu.clientHeight / 2;
+
+      items.forEach((btn, i) => {
+        const angle = (2 * Math.PI * i) / N - Math.PI / 2; // 從正上方開始
+        const x = centerX + radius * Math.cos(angle);
+        const y = centerY + radius * Math.sin(angle);
+        btn.style.left = x + 'px';
+        btn.style.top = y + 'px';
+      });
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      menuOpen = false;
+      linearMenu.classList.remove('visible');
+      pieMenu.classList.remove('visible');
+      log(`Mode: ${mode === 'linear' ? 'Linear dropdown' : 'Pie menu'}. Click "Menu" to open.`);
+    }
+
+    // 中央 Menu 按鈕：打開/關閉目前模式的選單
+    menuCenter.addEventListener('click', () => {
+      menuOpen = !menuOpen;
+      if (currentMode === 'linear') {
+        linearMenu.classList.toggle('visible', menuOpen);
+        pieMenu.classList.remove('visible');
+      } else {
+        pieMenu.classList.toggle('visible', menuOpen);
+        linearMenu.classList.remove('visible');
+      }
+      if (menuOpen) {
+        log(`Menu opened (${currentMode}). Click an item.`);
+      } else {
+        log('Menu closed.');
+      }
+    });
+
+    // 點 linear menu 項目
+    linearMenu.addEventListener('click', (e) => {
+      const li = e.target.closest('li');
+      if (!li) return;
+      const item = li.dataset.item;
+      log(`Linear menu item clicked: ${item}`);
+      menuOpen = false;
+      linearMenu.classList.remove('visible');
+    });
+
+    // 點 pie menu 項目（含按壓效果）
+    pieMenu.addEventListener('click', (e) => {
+      const btn = e.target.closest('.pie-item');
+      if (!btn) return;
+      const item = btn.dataset.item;
+
+      // 視覺「按下去」：維持 120ms 再關閉 menu
+      btn.classList.add('pressed');
+      setTimeout(() => {
+        btn.classList.remove('pressed');
+        menuOpen = false;
+        pieMenu.classList.remove('visible');
+      }, 120);
+
+      log(`Pie menu item clicked: ${item}`);
+    });
+
+    // 切換模式
+    modeRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (radio.checked) setMode(radio.value);
+      });
+    });
+
+    // 初始化
+    layoutPieItems();
+    setMode('linear');
+  </script>
+</body>
+</html>
