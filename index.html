@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Linear vs Pie Menu – Basic Demo</title>
+  <title>HCI Final Project Linear vs Pie Menu</title>
   <style>
     body {
       margin: 0;
@@ -31,10 +31,43 @@
       cursor: pointer;
     }
 
+    /* 控制面板（開始實驗、顯示目標與進度） */
+    #control-panel {
+      margin-top: 8px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    #start-btn {
+      padding: 6px 14px;
+      border-radius: 16px;
+      border: none;
+      background: #1976d2;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    #start-btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    #target-text {
+      font-weight: 600;
+    }
+
+    #status-text {
+      font-size: 13px;
+      color: #555;
+    }
+
     /* 中央實驗區 */
     #stage {
       position: relative;
-      margin-top: 24px;
+      margin-top: 16px;
       width: 600px;
       height: 400px;
       border: 1px solid #ccc;
@@ -66,13 +99,13 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.2);
       user-select: none;
       transition: transform 0.08s ease-out, box-shadow 0.08s ease-out, background 0.08s;
+      z-index: 2;
     }
 
     #menu-center:hover {
       background: #444;
     }
 
-    /* 按下去的視覺反饋 */
     #menu-center:active {
       transform: translate(-50%, -50%) scale(0.95);
       box-shadow: 0 1px 2px rgba(0,0,0,0.35);
@@ -85,16 +118,17 @@
       pointer-events: none; /* 預設不吃事件 */
       opacity: 0;
       transition: opacity 0.15s ease-out;
+      z-index: 1;
     }
 
     .menu.visible {
-      pointer-events: auto; /* 打開時才吃事件 */
+      pointer-events: auto; /* 打開才吃事件 */
       opacity: 1;
     }
 
     /* Linear menu (dropdown)：固定在 Menu 按鈕下方 */
     #linear-menu {
-      top: calc(50% + 26px);  /* 中心往下移一點（= 半顆按鈕高度 + gap） */
+      top: calc(50% + 26px);
       left: 50%;
       transform: translate(-50%, 0);
       background: #fff;
@@ -120,13 +154,12 @@
       background: #f0f0f0;
     }
 
-    /* 按下 linear item 時，下沉＋顏色加深 */
     #linear-menu li:active {
       background: #e0e0e0;
       transform: translateY(1px);
     }
 
-    /* Pie menu：以 stage 中心為圓心 */
+    /* Pie menu：以 stage 中心為圓心（只當作放 label 的容器） */
     #pie-menu {
       top: 50%;
       left: 50%;
@@ -134,14 +167,15 @@
       height: 260px;
       transform: translate(-50%, -50%);
       border-radius: 50%;
-      /* 這裡原本有 pointer-events: none; 已經刪掉 */
+      /* 不用 pointer-events: none; 由 .menu 控制 */
     }
 
     .pie-item {
       position: absolute;
-      width: 80px;
-      height: 28px;
-      border-radius: 14px;
+      /* ↓↓↓ 這裡是 pie menu「按鈕視覺大小」(W)，可自行調整 ↓↓↓ */
+      width: 90px;     /* 目標寬度：建議 80–120px */
+      height: 32px;    /* 目標高度：建議 28–40px */
+      border-radius: 16px;
       background: #1976d2;
       color: #fff;
       border: none;
@@ -157,7 +191,6 @@
       background: #1565c0;
     }
 
-    /* 按下去時的樣式（用 JS 加 .pressed） */
     .pie-item.pressed {
       transform: translate(-50%, -50%) scale(0.90);
       box-shadow: 0 1px 2px rgba(0,0,0,0.3);
@@ -174,28 +207,33 @@
       padding: 8px 10px;
       font-size: 12px;
       border-radius: 6px;
-      max-width: 260px;
+      max-width: 320px;
       line-height: 1.4;
     }
   </style>
 </head>
 <body>
   <header>
-    <h2 style="margin:0;">Linear Menu vs Pie Menu – Basic Demo</h2>
+    <h2 style="margin:0;">Linear Menu vs Pie Menu – Fitts' Law Demo</h2>
     <div id="mode-toggle">
+      <!-- 實驗跑的時候由程式控制，不讓受試者自己選 -->
       <label>
-        <input type="radio" name="mode" value="linear" checked>
+        <input type="radio" name="mode" value="linear" checked disabled>
         Linear dropdown
       </label>
       <label>
-        <input type="radio" name="mode" value="pie">
+        <input type="radio" name="mode" value="pie" disabled>
         Pie menu
       </label>
+    </div>
+    <div id="control-panel">
+      <button id="start-btn">開始實驗</button>
+      <div id="target-text">目標：尚未開始</div>
+      <div id="status-text"></div>
     </div>
   </header>
 
   <div id="stage">
-    <!-- 中央 Menu 按鈕 -->
     <button id="menu-center">Menu</button>
 
     <!-- Linear dropdown -->
@@ -210,7 +248,7 @@
       <li data-item="Help">Help</li>
     </ul>
 
-    <!-- Pie menu -->
+    <!-- Pie menu（只放 label，實際 hit 區域用角度＋半徑判定） -->
     <div id="pie-menu" class="menu">
       <button class="pie-item" data-item="File">File</button>
       <button class="pie-item" data-item="Edit">Edit</button>
@@ -226,35 +264,67 @@
   <div id="log">Ready.</div>
 
   <script>
-    const logDiv = document.getElementById('log');
+    // === DOM 物件 ===
+    const logDiv   = document.getElementById('log');
+    const stage    = document.getElementById('stage');
     const linearMenu = document.getElementById('linear-menu');
-    const pieMenu = document.getElementById('pie-menu');
-    const modeRadios = document.querySelectorAll('input[name="mode"]');
+    const pieMenu  = document.getElementById('pie-menu');
     const menuCenter = document.getElementById('menu-center');
+    const modeRadios = document.querySelectorAll('input[name="mode"]');
+    const startBtn   = document.getElementById('start-btn');
+    const targetText = document.getElementById('target-text');
+    const statusText = document.getElementById('status-text');
 
-    let currentMode = 'linear';
+    const pieButtons = Array.from(pieMenu.querySelectorAll('.pie-item'));
+
+    // === 實驗設定（可以改的參數都集中在這裡） ===
+    const ITEMS = ['File','Edit','View','Insert','Format','Tools','Window','Help'];
+
+    const PIE_ITEM_COUNT = ITEMS.length;          // 8 個 item ⇒ 每個 360/8 = 45 度
+    const PIE_ANGULAR_WIDTH_DEG = 360 / PIE_ITEM_COUNT;
+
+    const PIE_INNER_DEADZONE = 30;                // 中心盲區半徑 (px)，建議 20–40
+    const PIE_VISUAL_RADIUS   = 120;              // Label/按鈕中心距離 (px)：建議 100–150
+
+    const TRIALS_PER_BLOCK = 8;                   // 每種 menu 幾個 trial（之後可以加大）
+    const BLOCK_ORDER = ['linear', 'pie'];        // Block 順序：先 linear 再 pie
+    const TOTAL_TRIALS = TRIALS_PER_BLOCK * BLOCK_ORDER.length;
+
+    // === 實驗狀態 ===
+    let currentMode = 'linear';   // 'linear' | 'pie'
     let menuOpen = false;
+    let experimentRunning = false;
+
+    let trialIndex = 0;           // 0...(TOTAL_TRIALS-1)
+    let currentTarget = null;
+    let movementStarted = false;
+    let movementStartTime = null;
+
+    const logs = [];              // 儲存所有 trial 資料
 
     function log(msg) {
       logDiv.textContent = msg;
       console.log(msg);
     }
 
-    // 將 pie menu 子項目平均分布在圓周上
-    function layoutPieItems() {
-      const items = pieMenu.querySelectorAll('.pie-item');
-      const N = items.length;
-      const radius = 90; // 之後可以當作實驗參數
-      const centerX = pieMenu.clientWidth / 2;
-      const centerY = pieMenu.clientHeight / 2;
+    // === Pie menu：排版按鈕位置（只負責「視覺位置」，真正 hit 判定在 handlePieSelection） ===
+    function layoutPieItems(radius = PIE_VISUAL_RADIUS) {
+      const rect = pieMenu.getBoundingClientRect();
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
 
-      items.forEach((btn, i) => {
-        const angle = (2 * Math.PI * i) / N - Math.PI / 2; // 從正上方開始
+      pieButtons.forEach((btn, i) => {
+        // 每個 item 的中心角度：等分 360 度，從正上方開始順時針排
+        const angle = (2 * Math.PI * i) / PIE_ITEM_COUNT - Math.PI / 2;
         const x = centerX + radius * Math.cos(angle);
         const y = centerY + radius * Math.sin(angle);
         btn.style.left = x + 'px';
-        btn.style.top = y + 'px';
+        btn.style.top  = y + 'px';
       });
+    }
+
+    function updateModeRadioUI(mode) {
+      modeRadios.forEach(r => r.checked = (r.value === mode));
     }
 
     function setMode(mode) {
@@ -262,12 +332,16 @@
       menuOpen = false;
       linearMenu.classList.remove('visible');
       pieMenu.classList.remove('visible');
-      log(`Mode: ${mode === 'linear' ? 'Linear dropdown' : 'Pie menu'}. Click "Menu" to open.`);
+      updateModeRadioUI(mode);
+      log(`Mode: ${mode === 'linear' ? 'Linear dropdown' : 'Pie menu'}。按 Menu 開啟選單。`);
     }
 
-    // 中央 Menu 按鈕：打開/關閉目前模式的選單
-    menuCenter.addEventListener('click', () => {
+    // === Menu 按鈕：打開/關閉目前模式的 menu ===
+    menuCenter.addEventListener('click', (event) => {
+      event.stopPropagation();  // 避免 bubble 到 stage 被當成 pie 選擇
+      const now = performance.now();
       menuOpen = !menuOpen;
+
       if (currentMode === 'linear') {
         linearMenu.classList.toggle('visible', menuOpen);
         pieMenu.classList.remove('visible');
@@ -275,50 +349,201 @@
         pieMenu.classList.toggle('visible', menuOpen);
         linearMenu.classList.remove('visible');
       }
-      if (menuOpen) {
-        log(`Menu opened (${currentMode}). Click an item.`);
-      } else {
-        log('Menu closed.');
+
+      if (experimentRunning && menuOpen && !movementStarted) {
+        movementStarted = true;
+        movementStartTime = now;
+      }
+
+      if (!experimentRunning) {
+        if (menuOpen) {
+          log(`Menu opened (${currentMode}). Free play.`);
+        } else {
+          log('Menu closed (free play).');
+        }
       }
     });
 
-    // 點 linear menu 項目
+    // === Linear menu：點選項目 ===
     linearMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
       const li = e.target.closest('li');
       if (!li) return;
       const item = li.dataset.item;
-      log(`Linear menu item clicked: ${item}`);
+
+      if (!experimentRunning) {
+        log(`(Free play) Linear menu item clicked: ${item}`);
+        menuOpen = false;
+        linearMenu.classList.remove('visible');
+        return;
+      }
+
       menuOpen = false;
       linearMenu.classList.remove('visible');
+      finishTrial('linear', item);
     });
 
-    // 點 pie menu 項目（含按壓效果）
-    pieMenu.addEventListener('click', (e) => {
-      const btn = e.target.closest('.pie-item');
-      if (!btn) return;
-      const item = btn.dataset.item;
+    // === Pie menu：根據「角度＋半徑」決定選到哪個 wedge ===
+    function handlePieSelection(event) {
+      // 只在 pie 模式 + menu 打開時作用
+      if (currentMode !== 'pie' || !menuOpen) return;
 
-      // 視覺「按下去」：維持 120ms 再關閉 menu
-      btn.classList.add('pressed');
-      setTimeout(() => {
-        btn.classList.remove('pressed');
-        menuOpen = false;
-        pieMenu.classList.remove('visible');
-      }, 120);
+      // 點到 Menu 按鈕就當成關閉，不當成選項
+      if (event.target.closest('#menu-center')) return;
 
-      log(`Pie menu item clicked: ${item}`);
-    });
+      // 以 stage 中心為原點計算滑鼠位置
+      const stageRect = stage.getBoundingClientRect();
+      const cx = stageRect.left + stageRect.width  / 2;
+      const cy = stageRect.top  + stageRect.height / 2;
 
-    // 切換模式
-    modeRadios.forEach(radio => {
-      radio.addEventListener('change', () => {
-        if (radio.checked) setMode(radio.value);
+      const dx = event.clientX - cx;
+      const dy = event.clientY - cy;
+      const r  = Math.hypot(dx, dy);
+
+      // 中心盲區：避免在中心附近小抖動就跳 item
+      if (r < PIE_INNER_DEADZONE) {
+        log('Pie menu：點在中心盲區（不算選項）。');
+        return;
+      }
+
+      // 角度：以正上方為 0 度，順時針 0~360
+      let theta = Math.atan2(dy, dx);    // [-π, π]，0 在右邊
+      theta += Math.PI / 2;              // 改成 0 在上方
+      if (theta < 0) theta += 2 * Math.PI;
+
+      const sectorSize = 2 * Math.PI / PIE_ITEM_COUNT;
+      let index = Math.floor(theta / sectorSize);
+      if (index < 0) index = 0;
+      if (index >= PIE_ITEM_COUNT) index = PIE_ITEM_COUNT - 1;
+
+      const selectedLabel = ITEMS[index];
+
+      // 視覺按壓效果：對應 wedge 的 label 按鈕縮小一下
+      const btn = pieButtons[index];
+      if (btn) {
+        btn.classList.add('pressed');
+        setTimeout(() => btn.classList.remove('pressed'), 120);
+      }
+
+      // 這裡就實現了「有效距離無限大」：只看角度，不看 r 上限
+      menuOpen = false;
+      pieMenu.classList.remove('visible');
+
+      if (!experimentRunning) {
+        log(`(Free play) Pie wedge selected: ${selectedLabel}`);
+        return;
+      }
+
+      finishTrial('pie', selectedLabel);
+    }
+
+    // 在整個 stage 上監聽 click（只有 pie 模式 + menuOpen 時會觸發 handlePieSelection）
+    stage.addEventListener('click', handlePieSelection);
+
+    // === 實驗 trial 流程控制 ===
+    function finishTrial(menuType, selectedItem) {
+      if (!experimentRunning) return;
+
+      const now = performance.now();
+      const correct = (selectedItem === currentTarget);
+      const mt = movementStarted ? (now - movementStartTime) : null;
+
+      const blockIndex   = Math.floor(trialIndex / TRIALS_PER_BLOCK);
+      const trialInBlock = trialIndex % TRIALS_PER_BLOCK;
+
+      logs.push({
+        trialIndex,
+        blockIndex,
+        trialInBlock,
+        menuType,
+        target:   currentTarget,
+        selected: selectedItem,
+        correct,
+        MT_ms: mt
       });
+
+      log(
+        `Trial ${trialIndex + 1}/${TOTAL_TRIALS} | ${menuType} | ` +
+        `target=${currentTarget}, selected=${selectedItem}, ` +
+        `correct=${correct}, MT=${mt !== null ? mt.toFixed(1) : 'NA'} ms`
+      );
+
+      trialIndex++;
+
+      setTimeout(() => {
+        nextTrial();
+      }, 500);
+    }
+
+    function nextTrial() {
+      if (!experimentRunning) return;
+
+      if (trialIndex >= TOTAL_TRIALS) {
+        finishExperiment();
+        return;
+      }
+
+      const blockIndex = Math.floor(trialIndex / TRIALS_PER_BLOCK);
+      const menuType = BLOCK_ORDER[blockIndex];
+
+      setMode(menuType);
+
+      // 簡單用 random target（之後你可以改成 counterbalanced）
+      currentTarget = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+
+      targetText.textContent = `目標：請選擇「${currentTarget}」`;
+      statusText.textContent =
+        `區塊 ${blockIndex + 1}/${BLOCK_ORDER.length} – ` +
+        `${menuType === 'linear' ? 'Linear' : 'Pie'} | ` +
+        `Trial ${trialIndex % TRIALS_PER_BLOCK + 1}/${TRIALS_PER_BLOCK}`;
+
+      // 重置 movement 記錄
+      movementStarted = false;
+      movementStartTime = null;
+    }
+
+    function startExperiment() {
+      experimentRunning = true;
+      trialIndex = 0;
+      logs.length = 0;
+
+      startBtn.disabled = true;
+      startBtn.textContent = '實驗進行中…';
+
+      targetText.textContent = '目標：即將開始';
+      statusText.textContent = '';
+
+      log('Experiment started. Follow the target instructions.');
+      nextTrial();
+    }
+
+    function finishExperiment() {
+      experimentRunning = false;
+      menuOpen = false;
+      linearMenu.classList.remove('visible');
+      pieMenu.classList.remove('visible');
+
+      startBtn.disabled = false;
+      startBtn.textContent = '重新開始實驗';
+
+      targetText.textContent = '目標：實驗結束';
+      statusText.textContent = `共完成 ${TOTAL_TRIALS} trials`;
+
+      log('Experiment finished. 請在 console 取出 logs（JSON）。');
+      console.log('=== Experiment logs ===');
+      console.log(JSON.stringify(logs, null, 2));
+    }
+
+    startBtn.addEventListener('click', () => {
+      if (!experimentRunning) {
+        startExperiment();
+      }
     });
 
-    // 初始化
-    layoutPieItems();
+    // === 初始化 ===
+    layoutPieItems(PIE_VISUAL_RADIUS);
     setMode('linear');
+    log('Ready. 按「開始實驗」進入正式流程。');
   </script>
 </body>
 </html>
