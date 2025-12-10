@@ -226,12 +226,12 @@
 </head>
 <body>
   <header>
-    <h2 style="margin:0;">Linear Menu vs Pie Menu – Fitts' Law Demo</h2>
+    <h2 style="margin:0;">HCI Final Project Linear vs Pie Menu</h2>
     <div id="mode-toggle">
       <!-- mode 只顯示目前是哪個 block，用程式控制，不用讓受試者改 -->
       <label>
         <input type="radio" name="mode" value="linear" checked disabled>
-        Linear dropdown
+        Linear menu
       </label>
       <label>
         <input type="radio" name="mode" value="pie" disabled>
@@ -388,7 +388,7 @@
 
       if (mode === 'linear') {
         // Linear 模式：Menu 在畫面高度約 30%
-        menuCenter.style.top = '30%';
+        menuCenter.style.top = '20%';
         menuCenter.style.left = '50%';
         positionLinearMenu();
       } else {
