@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Linear vs Pie Menu – Fitts' Law Demo</title>
+  <title>HCI Final Project Linear vs Pie Menu</title>
   <style>
     body {
       margin: 0;
@@ -31,7 +31,22 @@
       cursor: pointer;
     }
 
-    /* 控制面板（開始實驗、顯示目標與進度） */
+    /* 順序選擇 */
+    #order-toggle {
+      margin-top: 4px;
+      font-size: 14px;
+    }
+
+    #order-toggle span {
+      margin-right: 4px;
+    }
+
+    #order-toggle label {
+      margin: 0 8px;
+      cursor: pointer;
+    }
+
+    /* 開始實驗:顯示幕標與進度 */
     #control-panel {
       margin-top: 8px;
       font-size: 14px;
@@ -64,7 +79,7 @@
       color: #555;
     }
 
-    /* 中央實驗區 */
+    /* 實驗設計 */
     #stage {
       position: relative;
       margin-top: 16px;
@@ -80,10 +95,10 @@
       overflow: hidden;
     }
 
-    /* Menu 按鈕（位置之後在 JS 依模式調整） */
+    /* Menu 按鈕 */
     #menu-center {
       position: absolute;
-      top: 50%;          /* 預設在舞台中心（pie 模式用），linear 模式在 JS 改成 30% */
+      top: 50%;          /* 先預設在中心（pie 模式用），linear 模式在 JS 改成 30% */
       left: 50%;
       transform: translate(-50%, -50%);
       width: 90px;
@@ -113,7 +128,7 @@
       background: #222;
     }
 
-    /* 共用 menu 容器 */
+    /* 共用 menu 參數 */
     .menu {
       position: absolute;
       pointer-events: none; /* 預設不吃事件 */
@@ -127,7 +142,7 @@
       opacity: 1;
     }
 
-    /* Linear menu：top/left 由 JS 動態算，不在這裡寫死 */
+    /* Linear menu：top/left 由 JS 動態算 先不在這寫死 */
     #linear-menu {
       background: #fff;
       border-radius: 6px;
@@ -157,7 +172,7 @@
       transform: translateY(1px);
     }
 
-    /* Pie menu：以舞台中心為圓心（圓心與 menu-center 在 pie 模式對齊） */
+    /* Pie menu：以介面中心為圓心 */
     #pie-menu {
       top: 50%;
       left: 50%;
@@ -169,7 +184,7 @@
 
     .pie-item {
       position: absolute;
-      /* ↓↓↓ 這裡是 pie menu「按鈕視覺大小」(W)，可自行調整 ↓↓↓ */
+      /* 這裡是 pie menu「按鈕視覺大小」(W)，可自行調整*/
       width: 90px;     /* 目標寬度：建議 80–120px */
       height: 32px;    /* 目標高度：建議 28–40px */
       border-radius: 16px;
@@ -211,17 +226,32 @@
 </head>
 <body>
   <header>
-    <h2 style="margin:0;">HCI Final Project Linear Menu vs Pie Menu </h2>
+    <h2 style="margin:0;">Linear Menu vs Pie Menu – Fitts' Law Demo</h2>
     <div id="mode-toggle">
+      <!-- mode 只顯示目前是哪個 block，用程式控制，不用讓受試者改 -->
       <label>
         <input type="radio" name="mode" value="linear" checked disabled>
-        Linear menu
+        Linear dropdown
       </label>
       <label>
         <input type="radio" name="mode" value="pie" disabled>
         Pie menu
       </label>
     </div>
+
+    <!-- Block 順序選擇 -->
+    <div id="order-toggle">
+      <span>Block 順序：</span>
+      <label>
+        <input type="radio" name="block-order" value="linear-first" checked>
+        Linear → Pie
+      </label>
+      <label>
+        <input type="radio" name="block-order" value="pie-first">
+        Pie → Linear
+      </label>
+    </div>
+
     <div id="control-panel">
       <button id="start-btn">開始實驗</button>
       <div id="target-text">目標：尚未開始</div>
@@ -267,6 +297,7 @@
     const pieMenu  = document.getElementById('pie-menu');
     const menuCenter = document.getElementById('menu-center');
     const modeRadios = document.querySelectorAll('input[name="mode"]');
+    const orderRadios = document.querySelectorAll('input[name="block-order"]');
     const startBtn   = document.getElementById('start-btn');
     const targetText = document.getElementById('target-text');
     const statusText = document.getElementById('status-text');
@@ -276,13 +307,18 @@
     // === 實驗設定：可調參數 ===
     const ITEMS = ['File','Edit','View','Insert','Format','Tools','Window','Help'];
 
-    const PIE_ITEM_COUNT = ITEMS.length;          // 8 個 item ⇒ 每個 360/8 = 45 度
-    const PIE_INNER_DEADZONE = 30;                // 中心盲區半徑 (px)，建議 20–40
-    const PIE_VISUAL_RADIUS   = 120;              // Pie label 距離中心 (px)，建議 100–150
+    const PIE_ITEM_COUNT = ITEMS.length;          // 8 個 item 每個 360/8 = 45 度
+    const PIE_INNER_DEADZONE = 30;                // 中心盲區半徑 (px)，大約 20–40
+    const PIE_VISUAL_RADIUS   = 120;              // Pie label 距離中心 (px)，大約 100–150
 
-    const TRIALS_PER_BLOCK = 8;                   // 每種 menu 幾個 trial
-    const BLOCK_ORDER = ['linear', 'pie'];        // Block 順序：先 linear 再 pie
-    const TOTAL_TRIALS = TRIALS_PER_BLOCK * BLOCK_ORDER.length;
+    const TRIALS_PER_BLOCK = ITEMS.length;        // 每種 menu 一個 block = 把 8 個 item 各出現一次
+
+    // Block 順序會在開始實驗時決定：['linear','pie'] 或 ['pie','linear']
+    let blockOrder = ['linear', 'pie'];
+    let TOTAL_TRIALS = TRIALS_PER_BLOCK * blockOrder.length;
+
+    // blockTargets[b][t] = 第 b 個 block、第 t 個 trial 要用的 target
+    let blockTargets = [];
 
     // === 實驗狀態 ===
     let currentMode = 'linear';   // 'linear' | 'pie'
@@ -301,7 +337,17 @@
       console.log(msg);
     }
 
-    // === Pie menu：排版按鈕（視覺位置） ===
+    // Fisher–Yates shuffle：用來產生「不重複的 target 順序」
+    function shuffledItems() {
+      const arr = ITEMS.slice();
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    // Pie menu：排版按鈕（視覺位置）
     function layoutPieItems(radius = PIE_VISUAL_RADIUS) {
       const rect = pieMenu.getBoundingClientRect();
       const centerX = rect.width / 2;
@@ -316,7 +362,7 @@
       });
     }
 
-    // === Linear menu：讓 dropdown 永遠貼在 Menu 按鈕正下方 ===
+    // Linear menu：讓 dropdown 永遠貼在 Menu 按鈕正下方
     function positionLinearMenu() {
       const stageRect  = stage.getBoundingClientRect();
       const centerRect = menuCenter.getBoundingClientRect();
@@ -341,12 +387,12 @@
       updateModeRadioUI(mode);
 
       if (mode === 'linear') {
-        // Linear 模式：Menu 按鈕放在舞台高度約 30% 處，避免 dropdown 被底部吃掉
-        menuCenter.style.top = '20%';
+        // Linear 模式：Menu 在畫面高度約 30%
+        menuCenter.style.top = '30%';
         menuCenter.style.left = '50%';
-        positionLinearMenu(); // 讓 dropdown 跟著新的位置
+        positionLinearMenu();
       } else {
-        // Pie 模式：Menu 回到舞台正中央，和 pie-menu 圓心對齊
+        // Pie 模式：Menu + Pie 圓心都在畫面中心
         menuCenter.style.top = '50%';
         menuCenter.style.left = '50%';
       }
@@ -354,14 +400,14 @@
       log(`Mode: ${mode === 'linear' ? 'Linear dropdown' : 'Pie menu'}。按 Menu 開啟選單。`);
     }
 
-    // === Menu 按鈕：打開/關閉目前模式的 menu ===
+    // Menu 按鈕：打開/關閉目前模式的 menu
     menuCenter.addEventListener('click', (event) => {
       event.stopPropagation();
       const now = performance.now();
       menuOpen = !menuOpen;
 
       if (currentMode === 'linear') {
-        positionLinearMenu(); // 每次打開前再對齊一次
+        positionLinearMenu();
         linearMenu.classList.toggle('visible', menuOpen);
         pieMenu.classList.remove('visible');
       } else {
@@ -490,17 +536,19 @@
       }
 
       const blockIndex = Math.floor(trialIndex / TRIALS_PER_BLOCK);
-      const menuType = BLOCK_ORDER[blockIndex];
+      const trialInBlock = trialIndex % TRIALS_PER_BLOCK;
+      const menuType = blockOrder[blockIndex];
 
       setMode(menuType);
 
-      currentTarget = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+      // 這裡用預先產好的 permutation，保證每個 block 8 trial 都是 8 個不同 item
+      currentTarget = blockTargets[blockIndex][trialInBlock];
 
       targetText.textContent = `目標：請選擇「${currentTarget}」`;
       statusText.textContent =
-        `區塊 ${blockIndex + 1}/${BLOCK_ORDER.length} – ` +
+        `區塊 ${blockIndex + 1}/${blockOrder.length} – ` +
         `${menuType === 'linear' ? 'Linear' : 'Pie'} | ` +
-        `Trial ${trialIndex % TRIALS_PER_BLOCK + 1}/${TRIALS_PER_BLOCK}`;
+        `Trial ${trialInBlock + 1}/${TRIALS_PER_BLOCK}`;
 
       movementStarted = false;
       movementStartTime = null;
@@ -511,13 +559,33 @@
       trialIndex = 0;
       logs.length = 0;
 
+      // 讀取實驗者選的 block 順序
+      let orderValue = 'linear-first';
+      orderRadios.forEach(r => {
+        if (r.checked) orderValue = r.value;
+      });
+      blockOrder = (orderValue === 'pie-first')
+        ? ['pie', 'linear']
+        : ['linear', 'pie'];
+
+      TOTAL_TRIALS = TRIALS_PER_BLOCK * blockOrder.length;
+
+      // 產生每個 block 的 target permutation
+      blockTargets = [];
+      for (let b = 0; b < blockOrder.length; b++) {
+        blockTargets.push(shuffledItems());
+      }
+
+      // 實驗中的時候不要讓人改 block-order
+      orderRadios.forEach(r => r.disabled = true);
+
       startBtn.disabled = true;
       startBtn.textContent = '實驗進行中…';
 
       targetText.textContent = '目標：即將開始';
       statusText.textContent = '';
 
-      log('Experiment started. Follow the target instructions.');
+      log(`Experiment started. Block order = ${blockOrder.join(' → ')}.`);
       nextTrial();
     }
 
@@ -566,10 +634,13 @@
       startBtn.disabled = false;
       startBtn.textContent = '重新開始實驗';
 
+      // 讓實驗者可以換下一位受試者的 block 順序
+      orderRadios.forEach(r => r.disabled = false);
+
       targetText.textContent = '目標：實驗結束';
       statusText.textContent = `共完成 ${TOTAL_TRIALS} trials`;
 
-      log('Experiment finished. 已下載 paired CSV。完整 logs 在 console。');
+      log('Experiment finished. 已下載數據CSV檔。完整 logs 在 console。');
       console.log('=== Full experiment logs (per selection) ===');
       console.log(JSON.stringify(logs, null, 2));
 
@@ -585,7 +656,7 @@
     // === 初始化 ===
     layoutPieItems(PIE_VISUAL_RADIUS);
     setMode('linear');
-    log('Ready. 按「開始實驗」進入正式流程。');
+    log('Ready. 先在「Block 順序」選 linear→pie 或 pie→linear，再按「開始實驗」。');
   </script>
 </body>
 </html>
